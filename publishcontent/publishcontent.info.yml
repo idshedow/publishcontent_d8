@@ -1,0 +1,6 @@
+name: Publish Content
+description: "Adds a 'Publish' or 'Unpublish' link on the node edit/view pages, and a 'Publish Link' field if the Views module is enabled."
+type: module
+version: '8.0.x-dev'
+core: '8.x'
+configure: 'publishcontent.admin'

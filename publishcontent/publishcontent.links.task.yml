@@ -1,0 +1,11 @@
+publishcontent.publish_tab:
+  route_name: publishcontent.publish_tab
+  deriver: 'Drupal\publishcontent\Plugin\Derivative\PublishUnpublishTabs'
+  title: 'Publish'
+  weight: 5
+
+publishcontent.unpublish_tab:
+  route_name: publishcontent.unpublish_tab
+  deriver: 'Drupal\publishcontent\Plugin\Derivative\PublishUnpublishTabs'
+  title: 'Unpublish'
+  weight: 5

@@ -1,0 +1,269 @@
+<?php
+
+/**
+ * @file
+ * Add link to publish or unpublish a node, with access control based on the node type.
+ */
+
+define('PUBLISHCONTENT_METHOD_NONE', 0);
+define('PUBLISHCONTENT_METHOD_BUTTON', 1);
+define('PUBLISHCONTENT_METHOD_TABS', 2);
+
+define('PUBLISHCONTENT_ACCESS_ALLOW', TRUE);
+define('PUBLISHCONTENT_ACCESS_DENY', FALSE);
+define('PUBLISHCONTENT_ACCESS_IGNORE', NULL);
+
+define('PUBLISHCONTENT_NODE_IS_PUBLISHED', 1);
+define('PUBLISHCONTENT_NODE_IS_NOT_PUBLISHED', 0);
+
+use \Drupal\Component\Utility\SafeMarkup;
+
+/**
+ * Determine if a user has publish permission to a given node.
+ *
+ * @param node $node
+ *   The node object to check.
+ * @param user $account
+ *   The user account to check - defaults to the logged in user.
+ *
+ * @return bool
+ *   TRUE if user can publish the node.
+ */
+function publishcontent_publish_access($node, $account = NULL) {
+  $access = FALSE;
+
+  // Variable may be '0' or '1' or not set.
+  if (!Drupal::config('publishcontent.settings')->get('publishcontent_' . $node->type->target_id)) {
+    return $access;
+  }
+
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  foreach (Drupal::moduleHandler()->invokeAll('publishcontent_publish_access', array($node, $account)) as $module_access) {
+    if (!is_null($module_access)) {
+      if ($module_access === PUBLISHCONTENT_ACCESS_DENY) {
+        // Anything denying access gets priority.
+        return FALSE;
+      }
+      elseif ($module_access === PUBLISHCONTENT_ACCESS_ALLOW) {
+        // Something grants access.
+        $access = TRUE;
+      }
+    }
+  }
+
+  return $access;
+}
+
+/**
+ * Implements hook_publishcontent_publish_access().
+ */
+function publishcontent_publishcontent_publish_access($node, $account) {
+  $access = (Drupal::currentUser()->hasPermission('administer nodes')
+    || Drupal::currentUser()->hasPermission('publish any content')
+    || (Drupal::currentUser()->hasPermission('publish own content') && $account->id() == $node->uid->target_id)
+    || (Drupal::currentUser()->hasPermission('publish editable content') && (!isset($node->nid->value) || $node->access('update', $account)))
+    || (Drupal::currentUser()->hasPermission('publish own ' . SafeMarkup::checkPlain($node->type->target_id) . ' content') && $account->id() == $node->uid->target_id)
+    || (Drupal::currentUser()->hasPermission('publish any ' . SafeMarkup::checkPlain($node->type->target_id) . ' content'))
+    || (Drupal::currentUser()->hasPermission('publish editable ' . SafeMarkup::checkPlain($node->type->target_id) . ' content') && (!isset($node->nid->value) || $node->access('update', $account)))
+  );
+
+  return $access ? PUBLISHCONTENT_ACCESS_ALLOW : PUBLISHCONTENT_ACCESS_IGNORE;
+}
+
+/**
+ * Determine if a user has unpublish rights on a node.
+ *
+ * @param node $node
+ *   The node object to check against.
+ * @param user $account
+ *   The user account object to check. Defaults to current user.
+ *
+ * @return bool
+ *   TRUE if the user has unpublish rights to the node.
+ */
+function publishcontent_unpublish_access($node, $account = NULL) {
+  $access = FALSE;
+
+  // Variable may be '0' or '1' or not set.
+  if (!Drupal::config('publishcontent.settings')->get('publishcontent_' . $node->type->target_id)) {
+    return $access;
+  }
+
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  foreach (Drupal::moduleHandler()->invokeAll('publishcontent_unpublish_access', array($node, $account)) as $module_access) {
+    if (!is_null($module_access)) {
+      if ($module_access === PUBLISHCONTENT_ACCESS_DENY) {
+        // Anything denying access gets priority.
+        return FALSE;
+      }
+      elseif ($module_access === PUBLISHCONTENT_ACCESS_ALLOW) {
+        // Something grants access.
+        $access = TRUE;
+      }
+    }
+  }
+
+  return $access;
+}
+
+/**
+ * Implements hook_publishcontent_unpublish_access().
+ */
+function publishcontent_publishcontent_unpublish_access($node, $account) {
+  $access = (Drupal::currentUser()->hasPermission('administer nodes')
+    || Drupal::currentUser()->hasPermission('unpublish any content')
+    || (Drupal::currentUser()->hasPermission('unpublish own content') && $account->id() == $node->uid->target_id)
+    || (Drupal::currentUser()->hasPermission('unpublish editable content') && (!isset($node->nid->value) || $node->access('update', $account)))
+    || (Drupal::currentUser()->hasPermission('unpublish own ' . SafeMarkup::checkPlain($node->type->target_id) . ' content') && $account->id() == $node->uid->target_id)
+    || (Drupal::currentUser()->hasPermission('unpublish any ' . SafeMarkup::checkPlain($node->type->target_id) . ' content'))
+    || (Drupal::currentUser()->hasPermission('unpublish editable ' . SafeMarkup::checkPlain($node->type->target_id) . ' content') && (!isset($node->nid->value) || $node->access('update', $account)))
+  );
+
+  return $access ? PUBLISHCONTENT_ACCESS_ALLOW : PUBLISHCONTENT_ACCESS_IGNORE;
+}
+
+/**
+ * Helper function to generate change of status message.
+ */
+function _publishcontent_get_message($nid, $title, $status) {
+  return ($status) ?
+    t('"@title" [@nid] has been published', array('@title' => $title, '@nid' => $nid)) :
+    t('"@title" [@nid] has been unpublished', array('@title' => $title, '@nid' => $nid));
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Allow to use the 'Publishing options' on the edit/add page.
+ * As before changes will save after flashing cache.
+ */
+function publishcontent_form_node_type_form_alter(&$form, &$form_state, $form_id) {
+  // Do not activate this option by default.
+  $default = \Drupal::config('publishcontent.settings')->get('publishcontent_' . $form_state->getFormObject()->getEntity()->get('type'));
+  $form['workflow']['publishcontent'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable publishcontent'),
+    '#default_value' => $default,
+    '#description' => t('Display publish or unpublish link for nodes of this type.'),
+  );
+  $form['actions']['submit']['#submit'][] = 'publishcontent_edit_node_type_submit';
+}
+
+/**
+ * Submit callback for content type edit form.
+ */
+function publishcontent_edit_node_type_submit(&$form, &$form_state) {
+  $node_type = $form_state->getValue('type');
+  $publishcontent = $form_state->getValue('publishcontent');
+  \Drupal::service('config.factory')->getEditable('publishcontent.settings')
+    ->set("publishcontent_{$node_type}", $publishcontent)
+    ->save();
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Alter the node edit forms.
+ */
+function publishcontent_form_node_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
+  if ($form['form_id']['#value'] == 'node_delete_confirm') {
+    return;
+  }
+
+  $node = $form_state->getFormObject()->getEntity();
+  $config = Drupal::config('publishcontent.settings')->get('publishcontent_' . $node->type->target_id);
+  if (!$config) {
+    // Publish content is not set or disabled for this content type.
+    return;
+  }
+
+  if (!empty(!$node->isPublished()) && !publishcontent_publish_access($node)) {
+    // Publish content is unavailable for user without unpublish access.
+    return;
+  }
+
+  if (!empty($node->isPublished()) && !publishcontent_unpublish_access($node)) {
+    // Publish content is unavailable for user without unpublish access.
+    return;
+  }
+
+  if (_publishcontent_get_method() == PUBLISHCONTENT_METHOD_BUTTON) {
+    _publishcontent_configure_publish_button($form, $form_state);
+  }
+}
+
+/**
+ * Add the publish button to the node edit form.
+ */
+function _publishcontent_configure_publish_button(&$form, \Drupal\Core\Form\FormStateInterface $form_state) {
+  $node = $form_state->getFormObject()->getEntity();
+
+  if (empty($node->nid->value) || empty($form['actions'])) {
+    // Don't include the publish button on node add forms.
+    return;
+  }
+
+  // Add either the publish or unpublish buttons.
+  $form['hidden_nid'] = array(
+    '#type' => 'hidden',
+    '#value' => $node->nid->value,
+  );
+  $form['actions']['publish_button'] = publishcontent_render_button((bool) $node->isPublished());
+}
+
+/**
+ * Render publish/unpublish button.
+ */
+function publishcontent_render_button($published) {
+  $value = $published === TRUE ? t('Unpublish') : t('Publish');
+  return array(
+    '#type' => 'submit',
+    '#access' => TRUE,
+    '#value' => $value,
+    '#weight' => '30',
+    '#submit' => array('_publishcontent_node_change_status'),
+  );
+}
+
+/**
+ * Submit handler to change status of node by clicking the button.
+ */
+function _publishcontent_node_change_status($form, &$form_state) {
+
+  // Loading the node we are changing status from hidden field.
+  $node = entity_load('node', $form_state->getValue('hidden_nid'));
+
+  // XOR the current status with 1 to get the opposite value.
+  $node->status->value = $node->status->value ^ 1;
+
+  // Save the status we want to set.
+  $status = $node->status->value;
+
+  // Try to update the node.
+  $node->save();
+
+  // Validate the status has changed.
+  if ($status == $node->status->value) {
+    // Everything went well.
+    drupal_set_message(_publishcontent_get_message($node->nid->value, $node->title->value, $node->status->value));
+  }
+  else {
+    // Prevent the user something went wrong.
+    drupal_set_message(t('The status of the node could not be updated.'), 'error');
+  }
+}
+
+/**
+ * Get the configured publish content method.
+ */
+function _publishcontent_get_method() {
+  return Drupal::config('publishcontent.settings')->get('publishcontent_method');
+}

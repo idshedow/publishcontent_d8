@@ -1,0 +1,15 @@
+<?php
+
+/**
+ * @file
+ * Install file for the publish content module.
+ */
+
+/**
+ * Set tab method as default while module is installed.
+ */
+function publishcontent_install() {
+  \Drupal::service('config.factory')->getEditable('publishcontent.settings')
+    ->set('publishcontent_method', PUBLISHCONTENT_METHOD_TABS)
+    ->save();
+}

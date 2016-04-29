@@ -1,0 +1,25 @@
+publishcontent.settings_form:
+  path: '/admin/config/content/publishcontent'
+  defaults:
+    _title: 'Publish content settings'
+    _form: '\Drupal\publishcontent\Form\PublishcontentConfigForm'
+  requirements:
+    _permission: 'administer site configuration'
+
+publishcontent.publish_tab:
+  path: '/node/{node}/publish'
+  defaults:
+    _controller: '\Drupal\publishcontent\Controller\ToggleStatusController::toggleStatus'
+    _title: 'Publish'
+  requirements:
+    _access_publish_toggle_status: 'Drupal\publishcontent\Access\PublishToggleStatusAccessCheck::access'
+    _csrf_token: 'TRUE'
+
+publishcontent.unpublish_tab:
+  path: '/node/{node}/unpublish'
+  defaults:
+    _controller: '\Drupal\publishcontent\Controller\ToggleStatusController::toggleStatus'
+    _title: 'Unpublish'
+  requirements:
+    _access_unpublish_toggle_status: 'Drupal\publishcontent\Access\UnpublishToggleStatusAccessCheck::access'
+    _csrf_token: 'TRUE'

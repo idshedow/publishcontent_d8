@@ -1,0 +1,9 @@
+services:
+  access_check.publishcontent.publish_toggle_status:
+    class: Drupal\publishcontent\Access\PublishToggleStatusAccessCheck
+    tags:
+      - { name: access_check, applies_to: _access_publish_toggle_status }
+  access_check.publishcontent.unpublish_toggle_status:
+    class: Drupal\publishcontent\Access\UnpublishToggleStatusAccessCheck
+    tags:
+      - { name: access_check, applies_to: _access_unpublish_toggle_status }

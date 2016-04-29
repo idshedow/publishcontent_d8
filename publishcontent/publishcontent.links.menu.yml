@@ -1,0 +1,5 @@
+publishcontent.settings_form:
+  route_name: publishcontent.settings_form
+  title: 'Publish content settings'
+  description: Configure settings
+  parent: system.admin_config_content
